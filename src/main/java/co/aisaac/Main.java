@@ -5,9 +5,18 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
+import org.apache.commons.imaging.ImageReadException;
+import org.apache.commons.imaging.ImageWriteException;
+import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.ImageMetadata;
+import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
+import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter;
+import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
+import org.apache.commons.imaging.formats.tiff.constants.ExifTagConstants;
+import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
+import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,10 +26,6 @@ import java.util.Date;
 public class Main {
 
 	public static final DateTimeFormatter NEW_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
-	//	public static final String EXTENSION = ".png";
-	public static final String EXTENSION = ".jpg";
-	//	public static final String EXTENSION = ".jpeg";
-	public static final boolean MOVE = false;
 
 	public static void main(String[] args) {
 		new Main().run();
@@ -28,11 +33,95 @@ public class Main {
 
 	private void run() {
 //		imageCreateDateToName();
-		imageNameToDate();
+//		imageNameToDate();
+//		manualDateToName();
+		dateToExif();
+
+	}
+
+	private void dateToExif() {
+		File[] files = new File("/users/aaron/photos_backup/keep/test").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/almunecar").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/chicago").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/denver").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/dubruvnik").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/evansville").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/granada").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/hochiminh").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/louisville").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/mamothcave").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/portland").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/seattle").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/seoul").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/vangtau").listFiles();
+//		File[] files = new File("/users/aaron/photos_backup/keep/zagreb").listFiles();
+		if (files == null) return;
+
+		for (File file : files) {
+
+			// validation
+			if (file.isDirectory()) continue;
+			if (!file.getName().startsWith("IMG_")) continue;
+			if (!file.getName().endsWith(".jpg")) continue;
+
+			// find date created from filename
+			LocalDateTime dateCreatedFn = extractDateFromFilename(file.getName());
+			if (!verifyDateCreated(file, dateCreatedFn)) {
+				System.out.println(file.getName());
+				System.out.println("Date extracted from filename is not correct");
+				continue;
+			}
+
+			// put the metadata
+			putDateCreatedMetadata(file, dateCreatedFn);
+		}
+	}
+
+	private void putDateCreatedMetadata(File file, LocalDateTime dateCreatedFn) {
+		try {
+			final ImageMetadata metadata = Imaging.getMetadata(file);
+			final JpegImageMetadata jpegMetadata = (JpegImageMetadata) metadata;
+			if (jpegMetadata == null) {
+				System.out.println("No metadata found for file: " + file.getName());
+				return;
+			}
+
+			final TiffImageMetadata exif = jpegMetadata.getExif();
+			if (exif == null) {
+				System.out.println("No EXIF metadata found for file: " + file.getName());
+				return;
+			}
+
+			final TiffOutputSet outputSet = exif.getOutputSet();
+			if (outputSet == null) {
+				System.out.println("No output set found for file: " + file.getName());
+				return;
+			}
+
+			final TiffOutputDirectory exifDirectory = outputSet.getOrCreateExifDirectory();
+			exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL);
+			exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL, dateCreatedFn.format(NEW_DATE_FORMAT));
+
+			final File dst = new File("/users/aaron/photos_backup/keep/test/" + file.getName() + ".new.jpg");
+
+			try (FileOutputStream fos = new FileOutputStream(dst);
+				 OutputStream os = new BufferedOutputStream(fos)) {
+
+				new ExifRewriter().updateExifMetadataLossless(file, os, outputSet);
+			}
+
+
+		} catch (ImageReadException | IOException e) {
+			System.out.println("Error reading metadata for file: " + file.getName());
+			e.printStackTrace();
+		} catch (ImageWriteException e) {
+			System.out.println("Error writing metadata for file: " + file.getName());
+			e.printStackTrace();
+		}
 	}
 
 	private void imageNameToDate() {
-		File[] files = new File("/users/aaron/photos_backup/no_dates").listFiles();
+		File[] files = new File("/users/aaron/photos_backup/keep").listFiles();
 		if (files == null) return;
 
 		int i = 0;
@@ -40,7 +129,6 @@ public class Main {
 
 			// validation
 			if (file.isDirectory()) continue;
-			if (!file.getName().endsWith(EXTENSION)) continue;
 			if (!file.getName().startsWith("IMG_")) continue;
 
 			if (i < 1000)
@@ -101,42 +189,31 @@ public class Main {
 	 */
 	private void imageCreateDateToName() {
 		// list all files
-		File[] files = new File("/users/aaron/photos_backup").listFiles();
+		File[] files = new File("/users/aaron/photos_backup/keep").listFiles();
 		if (files == null) return;
 
-		int i = 0;
 		for (File file : files) {
 			if (file.isDirectory()) continue;
 
-			if (!file.getName().endsWith(EXTENSION)) continue;
+			String extension = file.getName().substring(file.getName().lastIndexOf("."));
+			if (extension.isBlank()) continue;
 
-			if (i < 1000)
-				System.out.println(i + "\t\t" + file.getName());
-			else
-				System.out.println(i + "\t" + file.getName());
-
-			// find date created from metadata
 			LocalDateTime dateCreated = findDateCreatedFromMetadata(file);
 			if (dateCreated == null) continue;
 
-			i++;
-
-			move(file, dateCreated);
+			move(file, dateCreated, extension);
 
 		}
 	}
 
 	// hardcoded move file
-	private void move(File file, LocalDateTime dateCreated) {
+	private void move(File file, LocalDateTime dateCreated, String extension) {
 
-		String dateString = NEW_DATE_FORMAT.format(dateCreated) + EXTENSION;
-		String newName = "/users/aaron/photos_backup/renamed/IMG_" + dateString;
-
+		String newName = "/users/aaron/photos_backup/renamed/IMG_" + NEW_DATE_FORMAT.format(dateCreated) + extension;
 		try {
 			System.out.println("Moving file: " + file.getAbsolutePath());
 			System.out.println("To:          " + newName);
-			if (MOVE)
-				Files.move(file.toPath(), new File(newName).toPath());
+			Files.move(file.toPath(), new File(newName).toPath());
 		} catch (IOException e) {
 			System.out.println("Error moving file: " + file.getName());
 			e.printStackTrace();
@@ -160,8 +237,7 @@ public class Main {
 		Date date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
 		if (date == null) return null;
 
-		LocalDateTime ldt = LocalDateTime.ofInstant(date.toInstant(), ZoneId.of("UTC"));
-		return ldt;
+		return LocalDateTime.ofInstant(date.toInstant(), ZoneId.of("UTC"));
 	}
 
 	// 2 dates within a day of each other
