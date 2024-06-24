@@ -40,21 +40,8 @@ public class Main {
 	}
 
 	private void dateToExif() {
-		File[] files = new File("/users/aaron/photos_backup/keep/test").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/almunecar").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/chicago").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/denver").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/dubruvnik").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/evansville").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/granada").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/hochiminh").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/louisville").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/mamothcave").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/portland").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/seattle").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/seoul").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/vangtau").listFiles();
-//		File[] files = new File("/users/aaron/photos_backup/keep/zagreb").listFiles();
+		File[] files = new File("/users/aaron/photos_backup/keep").listFiles();
+
 		if (files == null) return;
 
 		for (File file : files) {
